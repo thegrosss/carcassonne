@@ -59,4 +59,62 @@ public class TileDefinitionTests
             "test-tile", TileTerrain.Road, TileTerrain.Field, TileTerrain.Field, TileTerrain.Field,
             first, second));
     }
+
+    [Fact]
+    public void ClockwiseRotationMovesRoadSideAndExitTogether()
+    {
+        TileDefinition original = SampleTiles.RoadEnd;
+
+        TileDefinition rotated = original.RotateClockwise();
+
+        Assert.Equal(TileTerrain.Road, rotated.GetSide(TileSide.West));
+        Assert.Equal(TileTerrain.Field, rotated.GetSide(TileSide.South));
+        TileFeature road = Assert.Single(rotated.Features, feature => feature.Type == TileFeatureType.Road);
+        Assert.Equal(new FeatureExit(TileSide.West), Assert.Single(road.Exits));
+
+        Assert.Equal(TileTerrain.Road, original.GetSide(TileSide.South));
+        TileFeature originalRoad = Assert.Single(original.Features, feature => feature.Type == TileFeatureType.Road);
+        Assert.Equal(new FeatureExit(TileSide.South), Assert.Single(originalRoad.Exits));
+    }
+
+    [Fact]
+    public void ClockwiseRotationKeepsFieldsOnTheirSidesOfTheRoad()
+    {
+        TileDefinition rotated = SampleTiles.StraightRoad.RotateClockwise();
+        var beforeCenter = new FeatureExit(TileSide.East, EdgeSlot.BeforeCenter);
+        var afterCenter = new FeatureExit(TileSide.East, EdgeSlot.AfterCenter);
+
+        TileFeature firstField = Assert.Single(rotated.Features, feature => feature.Exits.Contains(beforeCenter));
+        TileFeature secondField = Assert.Single(rotated.Features, feature => feature.Exits.Contains(afterCenter));
+
+        Assert.Equal("west-field", firstField.Id);
+        Assert.Equal("east-field", secondField.Id);
+    }
+
+    [Fact]
+    public void FourClockwiseRotationsRestoreSidesAndFeatures()
+    {
+        TileDefinition[] tiles = [SampleTiles.RoadEnd, SampleTiles.StraightRoad, SampleTiles.SplitCities, SampleTiles.Monastery];
+
+        foreach (TileDefinition original in tiles)
+        {
+            TileDefinition rotated = original;
+            for (int i = 0; i < 4; i++)
+                rotated = rotated.RotateClockwise();
+
+            Assert.Equal(original.Id, rotated.Id);
+            foreach (TileSide side in Enum.GetValues<TileSide>())
+                Assert.Equal(original.GetSide(side), rotated.GetSide(side));
+
+            Assert.Equal(original.Features.Count, rotated.Features.Count);
+            for (int i = 0; i < original.Features.Count; i++)
+            {
+                TileFeature originalFeature = original.Features[i];
+                TileFeature rotatedFeature = rotated.Features[i];
+                Assert.Equal(originalFeature.Id, rotatedFeature.Id);
+                Assert.Equal(originalFeature.Type, rotatedFeature.Type);
+                Assert.Equal<FeatureExit>(originalFeature.Exits, rotatedFeature.Exits);
+            }
+        }
+    }
 }
