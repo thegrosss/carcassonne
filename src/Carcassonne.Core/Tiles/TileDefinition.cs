@@ -48,4 +48,41 @@ public sealed class TileDefinition
 
         return sides[index];
     }
+
+    public TileDefinition RotateClockwise()
+    {
+        var rotatedFeatures = new TileFeature[Features.Count];
+
+        for (int i = 0; i < Features.Count; i++)
+        {
+            TileFeature feature = Features[i];
+            var rotatedExits = new FeatureExit[feature.Exits.Count];
+
+            for (int j = 0; j < feature.Exits.Count; j++)
+            {
+                FeatureExit exit = feature.Exits[j];
+                // Slot отсчитывается по часовой стрелке вдоль стороны и при повороте сохраняется.
+                rotatedExits[j] = new FeatureExit(RotateSideClockwise(exit.Side), exit.Slot);
+            }
+
+            rotatedFeatures[i] = new TileFeature(feature.Id, feature.Type, rotatedExits);
+        }
+
+        return new TileDefinition(
+            Id,
+            north: GetSide(TileSide.West),
+            east: GetSide(TileSide.North),
+            south: GetSide(TileSide.East),
+            west: GetSide(TileSide.South),
+            features: rotatedFeatures);
+    }
+
+    private static TileSide RotateSideClockwise(TileSide side) => side switch
+    {
+        TileSide.North => TileSide.East,
+        TileSide.East => TileSide.South,
+        TileSide.South => TileSide.West,
+        TileSide.West => TileSide.North,
+        _ => throw new ArgumentOutOfRangeException(nameof(side))
+    };
 }
