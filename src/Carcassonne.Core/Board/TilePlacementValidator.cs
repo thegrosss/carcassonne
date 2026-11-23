@@ -28,23 +28,71 @@ public static class TilePlacementValidator
 
         foreach (var (side, touchingSide, dx, dy) in NeighborOffsets)
         {
-            long x = (long)position.X + dx;
-            long y = (long)position.Y + dy;
-            if (x is < int.MinValue or > int.MaxValue || y is < int.MinValue or > int.MaxValue)
-                continue;
-
-            var neighborPosition = new BoardPosition((int)x, (int)y);
-            if (!board.TryGetValue(neighborPosition, out TileDefinition? neighbor))
+            if (!TryGetNeighborPosition(position, dx, dy, out BoardPosition neighborPosition) ||
+                !board.TryGetValue(neighborPosition, out TileDefinition? neighbor))
                 continue;
 
             hasNeighbor = true;
             if (tile.GetSide(side) != neighbor.GetSide(touchingSide))
-                return new(TilePlacementError.SideMismatch, $"Сторона не совпадает с плиткой в клетке ({x}, {y}).");
+                return new(TilePlacementError.SideMismatch,
+                    $"Сторона не совпадает с плиткой в клетке ({neighborPosition.X}, {neighborPosition.Y}).");
         }
 
         if (!hasNeighbor)
             return new(TilePlacementError.NoAdjacentTile, "Плитка должна касаться соседней плитки стороной.");
 
         return new(TilePlacementError.None, null);
+    }
+
+    public static IReadOnlyList<TilePlacement> FindLegalPlacements(
+        IReadOnlyDictionary<BoardPosition, TileDefinition> board,
+        TileDefinition tile)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(tile);
+
+        var candidates = new HashSet<BoardPosition>();
+        foreach (BoardPosition occupiedPosition in board.Keys)
+        {
+            foreach (var (_, _, dx, dy) in NeighborOffsets)
+            {
+                if (TryGetNeighborPosition(occupiedPosition, dx, dy, out BoardPosition candidate) &&
+                    !board.ContainsKey(candidate))
+                    candidates.Add(candidate);
+            }
+        }
+
+        if (candidates.Count == 0)
+            return [];
+
+        var placements = new List<TilePlacement>();
+        TileDefinition rotatedTile = tile;
+        for (int degrees = 0; degrees < 360; degrees += 90)
+        {
+            if (degrees > 0)
+                rotatedTile = rotatedTile.RotateClockwise();
+
+            foreach (BoardPosition candidate in candidates)
+            {
+                if (Validate(board, candidate, rotatedTile).IsAllowed)
+                    placements.Add(new TilePlacement(candidate, degrees));
+            }
+        }
+
+        return placements.AsReadOnly();
+    }
+
+    private static bool TryGetNeighborPosition(BoardPosition position, int dx, int dy, out BoardPosition neighbor)
+    {
+        long x = (long)position.X + dx;
+        long y = (long)position.Y + dy;
+        if (x is < int.MinValue or > int.MaxValue || y is < int.MinValue or > int.MaxValue)
+        {
+            neighbor = default;
+            return false;
+        }
+
+        neighbor = new BoardPosition((int)x, (int)y);
+        return true;
     }
 }
